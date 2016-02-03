@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <ListPreference
+        android:title="@string/filter_type"
+        android:key="@string/filter_type_key"
+        android:entries="@array/filter_types"
+        android:entryValues="@array/filter_types_values"
+        android:defaultValue="@string/default_filter_type"
+        />
+    <EditTextPreference
+        android:title="@string/filter_size"
+        android:key="@string/filter_size_key"
+        android:defaultValue="3"
+        android:inputType="number"
+        />
+</PreferenceScreen>
