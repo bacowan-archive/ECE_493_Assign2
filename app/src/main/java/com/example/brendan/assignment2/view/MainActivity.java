@@ -1,29 +1,33 @@
 package com.example.brendan.assignment2.view;
 
+import android.app.AlertDialog;
+import android.app.Dialog;
+import android.app.DialogFragment;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.database.Cursor;
+import android.gesture.GestureOverlayView;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
-import android.support.v4.app.ActivityCompat;
+import android.support.v4.view.GestureDetectorCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.View;
-import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.Toast;
 
+import com.example.brendan.assignment2.Callback;
 import com.example.brendan.assignment2.R;
+import com.example.brendan.assignment2.model.FileUtils;
 import com.example.brendan.assignment2.presenter.MainActivityPresenter;
-import com.example.brendan.assignment2.view.preferences.PreferenceParser;
 
 import java.io.File;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.Observable;
 import java.util.Observer;
 
@@ -31,69 +35,92 @@ public class MainActivity extends AppCompatActivity implements Observer {
 
     private static int CAPTURE_IMAGE_REQUEST = 1;
     private static int RESULT_LOAD_IMAGE = 2;
-    private Button cameraButton;
-    private Button loadButton;
-    private Button tempButton;
+
     private ImageView imageView;
     private Bitmap image;
+    private GestureOverlayView gestureView;
+
     private Uri imageUri;
-    private PreferenceParser preferenceParser;
+    private GestureDetectorCompat gestureDetector;
 
     private MainActivityPresenter presenter;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
 
         presenter = new MainActivityPresenter(this);
-        preferenceParser = new PreferenceParser(this);
 
-        setLayoutViews();
-        requestImageLoadPermissions();
-        initializeCameraButton();
-        initializeLoadButton();
+        initializeViews();
+        initializeImage();
+    }
 
+    private void initializeImage() {
         Uri uri = getIntent().getData();
+        //TODO: Clean this
         if (uri != null) {
             try {
-                presenter.setBitmapFromUri(uri, this);
+                presenter.setBitmapFromUri(uri);
             } catch (IOException e) {}
         }
+    }
+
+    private void initializeViews() {
+        setContentView(R.layout.activity_main);
+        setLayoutViews();
+        initializeListeners();
+    }
+
+    private void setLayoutViews() {
+        imageView = (ImageView) findViewById(R.id.image_view);
+        gestureView = (GestureOverlayView) findViewById(R.id.gestures);
+    }
+
+    private void initializeListeners() {
+        initializeTouchListeners();
+    }
+
+    private void initializeTouchListeners() {
+        MyGestureListener gestureListener = new MyGestureListener(this);
+        gestureListener.setLongPressCallback(initializeLongPressCallback());
+        gestureListener.setSwirlCallback(initializeSwirlCallback());
+        gestureListener.setRippleCallback(initializeRippleCallback());
+        gestureDetector = new GestureDetectorCompat(this, gestureListener);
+        imageView.setOnTouchListener(new ImageTouchListener());
+        gestureView.addOnGesturePerformedListener(gestureListener);
+    }
+
+    private Callback initializeLongPressCallback() {
+        return new Callback() {
+            @Override
+            public void call() {
+                presenter.bubbleImage(image);
+            }
+        };
+    }
+
+    private Callback initializeSwirlCallback() {
+        return new Callback() {
+            @Override
+            public void call() {
+                presenter.swirlImage(image);
+            }
+        };
+    }
+
+    private Callback initializeRippleCallback() {
+        return new Callback() {
+            @Override
+            public void call() {
+                presenter.rippleImage(image);
+            }
+        };
     }
 
     @Override
     public void onResume() {
         super.onResume();
         imageView.setImageBitmap(image);
-    }
-
-    private void setLayoutViews() {
-        cameraButton = (Button) findViewById(R.id.camera_button);
-        loadButton = (Button) findViewById(R.id.load_button);
-        imageView = (ImageView) findViewById(R.id.image_view);
-        tempButton = (Button) findViewById(R.id.temp_button);
-        tempButton.setOnClickListener(new TempButtonClickListener());
-    }
-
-    private void initializeCameraButton() {
-        cameraButton.setOnClickListener(new CameraButtonClickListener());
-    }
-
-    private void initializeLoadButton() {
-        loadButton.setOnClickListener(new LoadButtonClickListener());
-    }
-
-    private void requestImageLoadPermissions() {
-        String[] permissions = {"android.permission.READ_EXTERNAL_STORAGE"};
-        int permsRequestCode = 100;
-        ActivityCompat.requestPermissions(this, permissions, permsRequestCode);
-    }
-
-    private void galleryAddPic(Uri uri) {
-        Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
-        mediaScanIntent.setData(uri);
-        this.sendBroadcast(mediaScanIntent);
     }
 
     @Override
@@ -110,67 +137,57 @@ public class MainActivity extends AppCompatActivity implements Observer {
         // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
 
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return startSettingsActivity();
+        if (id == R.id.action_load)
+            return loadFromGallery();
+        else if (id == R.id.action_camera)
+            return startCamera();
+        else if (id == R.id.action_save) {
+            presenter.saveImage(image);
+            return true;
         }
+        else if (id == R.id.action_discard)
+            return startDiscardImagePrompt();
 
         return super.onOptionsItemSelected(item);
     }
 
-    private boolean startSettingsActivity() {
-        Intent intent = new Intent(this, SettingsActivity.class);
-        startActivity(intent);
+    private boolean loadFromGallery() {
+        Intent intent = new Intent(
+                Intent.ACTION_PICK,
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        startActivityForResult(intent, RESULT_LOAD_IMAGE);
         return true;
     }
 
-    @Override
-    public void update(Observable observable, Object data) {
-        if (data.getClass() == Bitmap.class) {
-            image = (Bitmap) data;
-            imageView.setImageBitmap(image);
-            enableButtons();
+
+    private boolean startCamera() {
+        Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        File imageFile;
+        try {
+            imageFile = createImageFile();
+        } catch (IOException e) {
+            imageFile = null;
         }
+
+        imageUri = Uri.fromFile(imageFile);
+
+        intent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
+        startActivityForResult(intent, CAPTURE_IMAGE_REQUEST);
+
+        return true;
     }
 
-    private class CameraButtonClickListener implements View.OnClickListener {
-
-        @Override
-        public void onClick(View arg0) {
-            Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-            File imageFile;
-            try {
-                imageFile = createImageFile();
-            } catch (IOException e) {
-                imageFile = null;
-            }
-
-            imageUri = Uri.fromFile(imageFile);
-
-            intent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
-            startActivityForResult(intent, CAPTURE_IMAGE_REQUEST);
-        }
+    private boolean startDiscardImagePrompt() {
+        //DialogFragment dialog = new DiscardConfirmDialogFragment();
+        //dialog.show(getSupportFragmentManager(), "discard");
+        return true;
     }
 
     private File createImageFile() throws IOException {
-        String timeStamp = SimpleDateFormat.getDateTimeInstance().format(new Date());
-        String imageFileName = "JPEG_" + timeStamp + "_";
+        String imageFileName = FileUtils.createFileName();
         File storageDir = Environment.getExternalStoragePublicDirectory(
                 Environment.DIRECTORY_PICTURES);
         return File.createTempFile(imageFileName, ".jpg", storageDir);
-    }
-
-    private class LoadButtonClickListener implements View.OnClickListener {
-
-        @Override
-        public void onClick(View arg0) {
-
-            Intent intent = new Intent(
-                    Intent.ACTION_PICK,
-                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-
-            startActivityForResult(intent, RESULT_LOAD_IMAGE);
-        }
     }
 
     @Override
@@ -198,36 +215,27 @@ public class MainActivity extends AppCompatActivity implements Observer {
         }
     }
 
-    private boolean validateSettings() {
-        if (image == null) {
-            toast("No image loaded");
-            return false;
-        }
-        else if (preferenceParser.getFilterType() == null) {
-            toast("No filter type was selected");
-            return false;
-        }
-        else if (!isOdd(preferenceParser.getFilterSize())) {
-            toast("Filter size must be odd");
-            return false;
-        }
-        else if (filterTooLarge(preferenceParser.getFilterSize())) {
-            toast("Filter size must be smaller than image");
-            return false;
-        }
-        else if (preferenceParser.getFilterSize() < 1) {
-            toast("Filter size must be positive");
-            return false;
-        }
-        return true;
+    private void galleryAddPic(Uri uri) {
+        Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+        mediaScanIntent.setData(uri);
+        this.sendBroadcast(mediaScanIntent);
     }
 
-    private boolean isOdd(int val) {
-        return val%2 == 1;
+    private void enableButtons() {
+        //loadButton.setEnabled(true);
+        //cameraButton.setEnabled(true);
     }
 
-    private boolean filterTooLarge(int val) {
-        return val > image.getHeight() || val > image.getWidth();
+    @Override
+    public void update(Observable observable, Object data) {
+        if (data.getClass() == Bitmap.class) {
+            image = (Bitmap) data;
+            imageView.setImageBitmap(image);
+            enableButtons();
+        }
+        else if (data.getClass() == String.class) {
+            toast((String) data);
+        }
     }
 
     private void toast(String text) {
@@ -236,22 +244,37 @@ public class MainActivity extends AppCompatActivity implements Observer {
         toast.show();
     }
 
-    private void disableButtons() {
-        loadButton.setEnabled(false);
-        cameraButton.setEnabled(false);
+    private class ImageTouchListener implements View.OnTouchListener {
+        public boolean onTouch(View v, MotionEvent event) {
+            gestureDetector.onTouchEvent(event);
+            return true;
+        }
     }
 
-    private void enableButtons() {
-        loadButton.setEnabled(true);
-        cameraButton.setEnabled(true);
-    }
-
-    private class TempButtonClickListener implements View.OnClickListener {
-
+    private class DiscardConfirmDialogFragment extends DialogFragment {
         @Override
-        public void onClick(View arg0) {
+        public Dialog onCreateDialog(Bundle savedInstanceState) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
+            builder.setMessage(R.string.discard_confirm_prompt);
+            builder.setPositiveButton(R.string.discard_yes, new PositiveClickListener());
+            builder.setNegativeButton(R.string.discard_no, new NegativeClickListener());
+            return builder.create();
+        }
+
+        private class PositiveClickListener implements DialogInterface.OnClickListener {
+            public void onClick(DialogInterface dialog, int id) {
+                discardImage();
+            }
+        }
+
+        private class NegativeClickListener implements DialogInterface.OnClickListener{
+            public void onClick(DialogInterface dialog, int id) {}
+        }
+
+        private void discardImage() {
 
         }
     }
+
 
 }
