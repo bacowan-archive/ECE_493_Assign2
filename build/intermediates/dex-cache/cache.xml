@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<items version="2" >
+
+    <item
+        jar="/afs/ualberta.ca/home/b/a/bacowan/ece_493/github/ECE_493_Assign2/app/build/intermediates/exploded-aar/com.android.support/support-v4/22.1.1/jars/classes.jar"
+        jumboMode="false"
+        revision="22.0.1"
+        sha1="c95ba8152923e4872e86a82cfcba9a51c0214328">
+        <dex dex="/afs/ualberta.ca/home/b/a/bacowan/ece_493/github/ECE_493_Assign2/app/build/intermediates/pre-dexed/debug/classes-d582dec2e2667d98b721683a2ea16e7451e0abad.jar" />
+    </item>
+    <item
+        jar="/afs/ualberta.ca/home/b/a/bacowan/ece_493/github/ECE_493_Assign2/app/build/intermediates/exploded-aar/com.android.support/appcompat-v7/22.1.1/jars/classes.jar"
+        jumboMode="false"
+        revision="22.0.1"
+        sha1="a3ff3c506644c820eb2bdf06e8339f72be578551">
+        <dex dex="/afs/ualberta.ca/home/b/a/bacowan/ece_493/github/ECE_493_Assign2/app/build/intermediates/pre-dexed/debug/classes-1289eb7de620a844c0a9666e6491e3f12a2a323c.jar" />
+    </item>
+    <item
+        jar="/opt/ECE_493/android-sdk-linux/extras/android/m2repository/com/android/support/support-annotations/22.1.1/support-annotations-22.1.1.jar"
+        jumboMode="false"
+        revision="22.0.1"
+        sha1="01d051a6bfb1218b1db2d3a5af0480ac2c25c42a">
+        <dex dex="/afs/ualberta.ca/home/b/a/bacowan/ece_493/github/ECE_493_Assign2/app/build/intermediates/pre-dexed/debug/support-annotations-22.1.1-313f37cb4202aef9a1815c3d5be7c91f40c23b7f.jar" />
+    </item>
+    <item
+        jar="/afs/ualberta.ca/home/b/a/bacowan/ece_493/github/ECE_493_Assign2/app/build/intermediates/exploded-aar/com.android.support/support-v4/22.1.1/jars/libs/internal_impl-22.1.1.jar"
+        jumboMode="false"
+        revision="22.0.1"
+        sha1="9e070ad32b2700b0343e8e0cccc437733d91ba3a">
+        <dex dex="/afs/ualberta.ca/home/b/a/bacowan/ece_493/github/ECE_493_Assign2/app/build/intermediates/pre-dexed/debug/internal_impl-22.1.1-b62f394bac424c3ef572fd117a6a235758698d20.jar" />
+    </item>
+
+</items>

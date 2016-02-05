@@ -193,7 +193,7 @@ public class MainActivity extends AppCompatActivity implements Observer {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == CAPTURE_IMAGE_REQUEST && resultCode == RESULT_OK && data != null) {
+        if (requestCode == CAPTURE_IMAGE_REQUEST && resultCode == RESULT_OK) {
             presenter.setBitmapFromPath(imageUri.getPath());
             galleryAddPic(imageUri);
         }
