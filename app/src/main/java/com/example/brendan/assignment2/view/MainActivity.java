@@ -1,10 +1,9 @@
 package com.example.brendan.assignment2.view;
 
 import android.app.AlertDialog;
-import android.app.Dialog;
-import android.app.DialogFragment;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.gesture.GestureOverlayView;
 import android.graphics.Bitmap;
@@ -22,8 +21,10 @@ import android.widget.ImageView;
 import android.widget.Toast;
 
 import com.example.brendan.assignment2.Callback;
+import com.example.brendan.assignment2.Exceptions.NoMoreUndosException;
 import com.example.brendan.assignment2.R;
 import com.example.brendan.assignment2.model.FileUtils;
+import com.example.brendan.assignment2.model.UndoableFileCallback;
 import com.example.brendan.assignment2.presenter.MainActivityPresenter;
 
 import java.io.File;
@@ -31,17 +32,23 @@ import java.io.IOException;
 import java.util.Observable;
 import java.util.Observer;
 
-public class MainActivity extends AppCompatActivity implements Observer {
+public class MainActivity extends AppCompatActivity implements Observer, SharedPreferences.OnSharedPreferenceChangeListener {
 
     private static int CAPTURE_IMAGE_REQUEST = 1;
     private static int RESULT_LOAD_IMAGE = 2;
 
     private ImageView imageView;
-    private Bitmap image;
     private GestureOverlayView gestureView;
 
-    private Uri imageUri;
     private GestureDetectorCompat gestureDetector;
+
+    private Bitmap image;
+    private Uri imageUri;
+    private UndoContainer<File> undoBitmaps;
+
+    private boolean buttonsEnabled = true;
+
+    private static int defaultMaxUndos;
 
     private MainActivityPresenter presenter;
 
@@ -51,13 +58,15 @@ public class MainActivity extends AppCompatActivity implements Observer {
 
         presenter = new MainActivityPresenter(this);
 
+        defaultMaxUndos = Integer.parseInt(getResources().getString(R.string.default_undo_count));
+        undoBitmaps = new UndoContainer<>(defaultMaxUndos);
+
         initializeViews();
         initializeImage();
     }
 
     private void initializeImage() {
         Uri uri = getIntent().getData();
-        //TODO: Clean this
         if (uri != null) {
             try {
                 presenter.setBitmapFromUri(uri);
@@ -91,30 +100,61 @@ public class MainActivity extends AppCompatActivity implements Observer {
     }
 
     private Callback initializeLongPressCallback() {
-        return new Callback() {
+        return new UndoableFileCallback(undoBitmaps, this) {
             @Override
             public void call() {
+                setImage(image);
+                super.call();
+                setBusy();
                 presenter.bubbleImage(image);
             }
         };
     }
 
     private Callback initializeSwirlCallback() {
-        return new Callback() {
+        return new UndoableFileCallback(undoBitmaps, this) {
             @Override
             public void call() {
+                setImage(image);
+                super.call();
+                setBusy();
                 presenter.swirlImage(image);
             }
         };
     }
 
     private Callback initializeRippleCallback() {
-        return new Callback() {
+        return new UndoableFileCallback(undoBitmaps, this) {
             @Override
             public void call() {
+                setImage(image);
+                super.call();
+                setBusy();
                 presenter.rippleImage(image);
             }
         };
+    }
+
+    @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        if (!buttonsEnabled) {
+            for (int i=1; i<menu.size(); i++)
+                menu.getItem(i).setEnabled(false);
+        } else {
+            for (int i=1; i<menu.size(); i++)
+                menu.getItem(i).setEnabled(true);
+        }
+        return true;
+    }
+
+    private void setBusy() {
+        findViewById(R.id.progress_bar).setVisibility(View.VISIBLE);
+        buttonsEnabled = false;
+    }
+
+    private void setNotBusy() {
+        findViewById(R.id.progress_bar).setVisibility(View.INVISIBLE);
+        buttonsEnabled = true;
     }
 
     @Override
@@ -137,7 +177,9 @@ public class MainActivity extends AppCompatActivity implements Observer {
         // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
 
-        if (id == R.id.action_load)
+        if (id == R.id.action_settings)
+            return startSettingsActivity();
+        else if (id == R.id.action_load)
             return loadFromGallery();
         else if (id == R.id.action_camera)
             return startCamera();
@@ -147,8 +189,16 @@ public class MainActivity extends AppCompatActivity implements Observer {
         }
         else if (id == R.id.action_discard)
             return startDiscardImagePrompt();
+        else if (id == R.id.action_undo)
+            return undo();
 
         return super.onOptionsItemSelected(item);
+    }
+
+    private boolean startSettingsActivity() {
+        Intent intent = new Intent(this, SettingsActivity.class);
+        startActivity(intent);
+        return true;
     }
 
     private boolean loadFromGallery() {
@@ -178,8 +228,27 @@ public class MainActivity extends AppCompatActivity implements Observer {
     }
 
     private boolean startDiscardImagePrompt() {
-        //DialogFragment dialog = new DiscardConfirmDialogFragment();
-        //dialog.show(getSupportFragmentManager(), "discard");
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setMessage(R.string.discard_confirm_prompt);
+        builder.setPositiveButton(R.string.discard_yes, new PositiveClickListener());
+        builder.setNegativeButton(R.string.discard_no, new NegativeClickListener());
+        AlertDialog dialog = builder.create();
+        dialog.show();
+
+        return true;
+    }
+
+    private boolean undo() {
+        try {
+            presenter.setBitmapFromUri(Uri.fromFile(undoBitmaps.pop()));
+        } catch (IOException e) {
+            toast("Error undoing");
+            return false;
+        }
+        catch (NoMoreUndosException e) {
+            toast("No more undos available");
+            return false;
+        }
         return true;
     }
 
@@ -221,21 +290,29 @@ public class MainActivity extends AppCompatActivity implements Observer {
         this.sendBroadcast(mediaScanIntent);
     }
 
-    private void enableButtons() {
-        //loadButton.setEnabled(true);
-        //cameraButton.setEnabled(true);
+
+
+    @Override
+    public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+        if (key.equals(getResources().getString(R.string.undo_count_key))) {
+            undoBitmaps.setMaxSize(sharedPreferences.getInt(key, defaultMaxUndos));
+        }
     }
 
     @Override
     public void update(Observable observable, Object data) {
         if (data.getClass() == Bitmap.class) {
-            image = (Bitmap) data;
-            imageView.setImageBitmap(image);
-            enableButtons();
+            updateImage((Bitmap) data);
+            setNotBusy();
         }
         else if (data.getClass() == String.class) {
             toast((String) data);
         }
+    }
+
+    private void updateImage(Bitmap newImage) {
+        image = newImage;
+        imageView.setImageBitmap(image);
     }
 
     private void toast(String text) {
@@ -251,30 +328,14 @@ public class MainActivity extends AppCompatActivity implements Observer {
         }
     }
 
-    private class DiscardConfirmDialogFragment extends DialogFragment {
-        @Override
-        public Dialog onCreateDialog(Bundle savedInstanceState) {
-            AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
-            builder.setMessage(R.string.discard_confirm_prompt);
-            builder.setPositiveButton(R.string.discard_yes, new PositiveClickListener());
-            builder.setNegativeButton(R.string.discard_no, new NegativeClickListener());
-            return builder.create();
-        }
-
-        private class PositiveClickListener implements DialogInterface.OnClickListener {
-            public void onClick(DialogInterface dialog, int id) {
-                discardImage();
-            }
-        }
-
-        private class NegativeClickListener implements DialogInterface.OnClickListener{
-            public void onClick(DialogInterface dialog, int id) {}
-        }
-
-        private void discardImage() {
-
+    private class PositiveClickListener implements DialogInterface.OnClickListener {
+        public void onClick(DialogInterface dialog, int id) {
+            updateImage(null);
         }
     }
 
+    private class NegativeClickListener implements DialogInterface.OnClickListener{
+        public void onClick(DialogInterface dialog, int id) {}
+    }
 
 }

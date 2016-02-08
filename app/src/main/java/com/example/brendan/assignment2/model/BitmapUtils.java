@@ -1,15 +1,18 @@
 package com.example.brendan.assignment2.model;
 
 import android.app.Activity;
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.provider.MediaStore;
 
-import com.example.brendan.assignment2.Exceptions.InvalidFilterType;
-
-import java.io.FileNotFoundException;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 /**
  * Created by Brendan on 1/13/2016.
@@ -24,20 +27,13 @@ public class BitmapUtils {
         return MediaStore.Images.Media.getBitmap(activity.getContentResolver(), uri);
     }
 
-    public static Bitmap filterImage(Bitmap image, FilterType filterType, int filterSize) {
-        return createFilter(filterType, filterSize).filterImage(image);
-    }
-
-    private static ImageFilter createFilter(FilterType filterType, int filterSize) {
-        return new ImageFilter(createSectionFilter(filterType), filterSize);
-    }
-
-    private static ImageSectionFilter createSectionFilter(FilterType filterType) {
-        if (filterType.equals(FilterType.MEAN))
-            return new MeanImageSectionFilter();
-        if (filterType.equals(FilterType.MEDIAN))
-            return new MedianImageSectionFilter();
-        throw new InvalidFilterType(filterType.name());
+    public static File saveBitmapTemporarily(Bitmap image, Context c) throws IOException {
+        File outputFile = new File(c.getCacheDir() + SimpleDateFormat.getDateTimeInstance().format(new Date()));
+        OutputStream outStream = new FileOutputStream(outputFile);
+        image.compress(Bitmap.CompressFormat.JPEG, 100, outStream);
+        outStream.flush();
+        outStream.close();
+        return outputFile;
     }
 
 }
